@@ -1,0 +1,3 @@
+# One instance domain per line (no scheme), e.g.:
+# neodb.social
+

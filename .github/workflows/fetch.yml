@@ -1,0 +1,44 @@
+name: Fetch Trending History
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-trending
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Run fetcher
+        run: |
+          go run ./_scripts/fetch_trending -instances _config/instance.txt -out .
+
+      - name: Commit and push changes
+        run: |
+          set -e
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "data: fetch trending $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            git push
+          else
+            echo "No changes to commit"
+          fi
