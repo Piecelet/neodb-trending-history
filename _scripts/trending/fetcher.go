@@ -127,8 +127,11 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
     now := time.Now().UTC()
     y, m, d := now.Date()
     ts := now.Format(time.RFC3339Nano)
-    // time-of-day subfolder, e.g. 16:36:50.154643Z
-    timeDir := now.Format("15:04:05.999999999Z07:00")
+    // time-of-day subfolder equals the time part of ts (RFC3339), e.g. 16:36:50.154643Z
+    timeDir := ts
+    if i := strings.Index(ts, "T"); i >= 0 && i+1 < len(ts) {
+        timeDir = ts[i+1:]
+    }
 
     for _, host := range hosts {
         dash := dashifyHost(host)
