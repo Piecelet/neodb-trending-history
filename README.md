@@ -10,7 +10,7 @@ Fetch and store NeoDB trending history for configured instances.
 - Per-type JSON snapshot: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
   - `timestamp` uses RFC3339 (serverdate), e.g. `YYYY-MM-DDThh:mm:ss.sssZ` (may include more fractional digits).
   - Example: `neodb-social/2025/11/06/2025-11-06T12:34:56.789Z-neodb-social-trending-book.json`
-- Summary JSON (no type suffix): `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash}.json`
+- Summary JSON (no type suffix): `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending}.json`
   - Structure: `{ "timestamp": string, "host": string, "types": { <type>: <raw_api_payload>, ... } }`
 - Per-day README: `{instance_host_dash}/{yyyy}/{mm}/{dd}/README.md`
   - First time created, header contains:

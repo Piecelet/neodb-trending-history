@@ -364,7 +364,7 @@ func writeSummaryJSON(root, dash string, y int, m int, d int, ts string, host st
     if err := os.MkdirAll(dir, 0o755); err != nil {
         return err
     }
-    fname := fmt.Sprintf("%s-%s.json", ts, dash)
+    fname := fmt.Sprintf("%s-%s-trending.json", ts, dash)
     fpath := filepath.Join(dir, fname)
     obj := map[string]any{
         "timestamp": ts,
