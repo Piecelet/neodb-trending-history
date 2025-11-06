@@ -174,7 +174,7 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
 
                 // Save for summary and README.
                 typePayloads[t] = json.RawMessage(data)
-                ents := toEntries(data)
+                ents := toEntries(data, host, t)
                 if len(ents) > 0 {
                     typeEntries[t] = ents
                 }
@@ -203,10 +203,11 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
 type entry struct {
     Title string
     Image string
+    Link  string
 }
 
 // toEntries attempts to parse trending payload into a list of entries.
-func toEntries(data []byte) []entry {
+func toEntries(data []byte, host string, typ string) []entry {
     var v any
     if err := json.Unmarshal(data, &v); err != nil {
         return nil
@@ -252,10 +253,11 @@ func toEntries(data []byte) []entry {
         if m, ok := it.(map[string]any); ok {
             title := pickTitle(m)
             img := pickImage(m)
-            if title == "" && img == "" {
+            link := pickLink(m, host, typ)
+            if title == "" && img == "" && link == "" {
                 continue
             }
-            out = append(out, entry{Title: title, Image: img})
+            out = append(out, entry{Title: title, Image: img, Link: link})
         }
     }
     return out
@@ -284,34 +286,74 @@ func pickTitle(m map[string]any) string {
 }
 
 func pickImage(m map[string]any) string {
-    // helpers
-    pickFromObj := func(obj map[string]any, keys ...string) string {
-        for _, k := range keys {
-            if v, ok := obj[k]; ok {
-                switch vv := v.(type) {
-                case string:
-                    if vv != "" {
-                        return vv
-                    }
-                case map[string]any:
-                    // try common sizes
-                    for _, kk := range []string{"url", "medium", "large", "small"} {
-                        if s, ok := vv[kk].(string); ok && s != "" {
-                            return s
-                        }
-                    }
-                }
-            }
-        }
-        return ""
-    }
-
-    if s := pickFromObj(m, "cover", "cover_url", "poster", "image", "img", "avatar", "icon", "logo", "picture", "pic", "thumbnail", "thumb"); s != "" {
-        return s
+    // Prefer cover_image_url at top-level or under subject
+    if v, ok := m["cover_image_url"].(string); ok && v != "" {
+        return v
     }
     if sub, ok := m["subject"].(map[string]any); ok {
-        if s := pickFromObj(sub, "cover", "cover_url", "poster", "image", "img", "avatar", "icon", "logo", "picture", "pic", "thumbnail", "thumb"); s != "" {
-            return s
+        if v, ok := sub["cover_image_url"].(string); ok && v != "" {
+            return v
+        }
+    }
+    // Fallback to other common keys just in case
+    if v, ok := m["cover"].(string); ok && v != "" {
+        return v
+    }
+    if v, ok := m["image"].(string); ok && v != "" {
+        return v
+    }
+    if sub, ok := m["subject"].(map[string]any); ok {
+        if v, ok := sub["cover"].(string); ok && v != "" {
+            return v
+        }
+        if v, ok := sub["image"].(string); ok && v != "" {
+            return v
+        }
+    }
+    return ""
+}
+
+func pickLink(m map[string]any, host, typ string) string {
+    // Prefer explicit URL fields
+    if v, ok := m["url"].(string); ok && v != "" {
+        if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+            return v
+        }
+        if strings.HasPrefix(v, "/") {
+            return "https://" + host + v
+        }
+        return "https://" + host + "/" + v
+    }
+    if sub, ok := m["subject"].(map[string]any); ok {
+        if v, ok := sub["url"].(string); ok && v != "" {
+            if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+                return v
+            }
+            if strings.HasPrefix(v, "/") {
+                return "https://" + host + v
+            }
+            return "https://" + host + "/" + v
+        }
+    }
+    // Construct from id if available
+    if v, ok := m["id"].(string); ok && v != "" {
+        if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+            return v
+        }
+        if strings.HasPrefix(v, "/") {
+            return "https://" + host + v
+        }
+        return fmt.Sprintf("https://%s/%s/%s", host, typ, v)
+    }
+    if sub, ok := m["subject"].(map[string]any); ok {
+        if v, ok := sub["id"].(string); ok && v != "" {
+            if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+                return v
+            }
+            if strings.HasPrefix(v, "/") {
+                return "https://" + host + v
+            }
+            return fmt.Sprintf("https://%s/%s/%s", host, typ, v)
         }
     }
     return ""
@@ -349,22 +391,32 @@ func appendREADME(root, dash, host string, y int, m int, d int, ts string, typeE
         b.WriteString(fmt.Sprintf("# NeoDB Trending History for %s\n\n", host))
     }
     b.WriteString(fmt.Sprintf("## %s\n", ts))
-    // Build a wide table with 20 columns as requested
-    columns := 20
+    // Build a wide table: first column is row label, remaining 19 cells for items
+    itemCols := 19
+    totalCols := 1 + itemCols
     // header row with blanks
     b.WriteString("|")
-    for i := 0; i < columns; i++ {
+    for i := 0; i < totalCols; i++ {
         b.WriteString("      |")
     }
     b.WriteString("\n|")
-    for i := 0; i < columns; i++ {
+    for i := 0; i < totalCols; i++ {
         b.WriteString(" ---- |")
     }
     b.WriteString("\n")
-    // rows: one per category, in deterministic order
+    // rows: include only types that were fetched (non-empty entries), keep stable order
     for _, t := range Types {
-        cells := renderCells(typeEntries[t], columns, host)
+        ents, ok := typeEntries[t]
+        if !ok || len(ents) == 0 {
+            continue
+        }
+        label := typeLabel(t)
+        cells := renderCells(ents, itemCols, host, t)
+        // write row label + cells
         b.WriteString("|")
+        b.WriteString(" ")
+        b.WriteString(escapePipes(label))
+        b.WriteString(" |")
         for _, c := range cells {
             b.WriteString(" ")
             b.WriteString(c)
@@ -384,26 +436,52 @@ func appendREADME(root, dash, host string, y int, m int, d int, ts string, typeE
     return err
 }
 
-func renderCells(ents []entry, columns int, host string) []string {
+func renderCells(ents []entry, columns int, host, typ string) []string {
     cells := make([]string, columns)
     for i := 0; i < columns; i++ {
         if i < len(ents) {
             t := strings.TrimSpace(ents[i].Title)
             t = escapePipes(t)
-            if ents[i].Image != "" {
-                img := ents[i].Image
-                if strings.HasPrefix(img, "/") {
-                    img = "https://" + host + img
-                }
-                cells[i] = fmt.Sprintf("![](%s)<br/>%s", img, t)
+            img := ents[i].Image
+            if strings.HasPrefix(img, "/") {
+                img = "https://" + host + img
+            }
+            link := ents[i].Link
+            titlePart := t
+            if link != "" {
+                titlePart = fmt.Sprintf("[%s](%s)", t, link)
+            }
+            if img != "" {
+                cells[i] = fmt.Sprintf("![](%s)<br/>%s", img, titlePart)
             } else {
-                cells[i] = t
+                cells[i] = titlePart
             }
         } else {
             cells[i] = ""
         }
     }
     return cells
+}
+
+func typeLabel(t string) string {
+    switch t {
+    case "book":
+        return "books"
+    case "movie":
+        return "movies"
+    case "tv":
+        return "tv"
+    case "music":
+        return "music"
+    case "game":
+        return "games"
+    case "podcast":
+        return "podcasts"
+    case "collection":
+        return "collections"
+    default:
+        return t
+    }
 }
 
 func escapePipes(s string) string {
