@@ -1,4 +1,4 @@
-# neodb-trending-history
+# NeoDB Trending History
 
 Fetch and store NeoDB trending history for configured instances.
 
