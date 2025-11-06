@@ -387,8 +387,9 @@ func appendREADME(root, dash, host string, y int, m int, d int, ts string, typeE
 
     var b strings.Builder
     if _, err := os.Stat(fpath); errors.Is(err, os.ErrNotExist) {
-        // New file: add top-level title
+        // New file: add top-level title and plain date line
         b.WriteString(fmt.Sprintf("# NeoDB Trending History for %s\n\n", host))
+        b.WriteString(fmt.Sprintf("%04d-%02d-%02d\n\n", y, m, d))
     }
     b.WriteString(fmt.Sprintf("## %s\n", ts))
     // Build a wide table: first column is row label, remaining 19 cells for items
