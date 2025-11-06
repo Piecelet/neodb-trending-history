@@ -7,9 +7,27 @@ Fetch and store NeoDB trending history for configured instances.
 - `_config/instance.txt`: one instance domain per line (no scheme).
 - `_scripts/fetch_trending`: Go CLI entry.
 - `_scripts/trending`: shared code for fetching and storage.
-- Output path: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
-  - `timestamp` uses RFC3339 (serverdate) like `YYYY-MM-DDThh:mm:ss.sZ`.
+- Per-type JSON snapshot: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
+  - `timestamp` uses RFC3339 (serverdate), e.g. `YYYY-MM-DDThh:mm:ss.sssZ` (may include more fractional digits).
   - Example: `neodb-social/2025/11/06/2025-11-06T12:34:56.789Z-neodb-social-book.json`
+- Summary JSON (no type suffix): `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash}.json`
+  - Structure: `{ "timestamp": string, "host": string, "types": { <type>: <raw_api_payload>, ... } }`
+- Per-day README: `{instance_host_dash}/{yyyy}/{mm}/{dd}/README.md`
+  - First time created, header contains:
+    - `# NeoDB Trending History for {host}`
+    - `YYYY-MM-DD` (plain date line)
+  - Each fetch appends a section:
+    - `## {RFC3339 timestamp}`
+    - A 20-column table snapshot
+      - Column 1: row label (books, movies, tv, music, games, podcasts, collections)
+      - Columns 2–20: items for that row
+      - Only rows for types fetched in that run are included (no empty rows)
+      - Each cell: clickable image + title in one link; image alt equals title
+        - With link: `[![{title}](img)<br/>{title}](url)`
+        - No link: `![{title}](img)<br/>{title}` or just `{title}`
+        - Relative image URLs are prefixed with `https://{host}`
+      - Image source: `cover_image_url` (top-level) or `subject.cover_image_url` as fallback
+      - Link source: prefer `url`; else build from `id` as `https://{host}/{type}/{id}`
 
 ## Trending endpoints
 
