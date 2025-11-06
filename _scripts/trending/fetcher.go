@@ -172,3 +172,4 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
 
     return nil
 }
+

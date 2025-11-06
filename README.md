@@ -5,8 +5,8 @@ Fetch and store NeoDB trending history for configured instances.
 ## Structure
 
 - `_config/instance.txt`: one instance domain per line (no scheme).
-- `_scripts/fetch_trending`: Go CLI that fetches and writes JSON snapshots.
-- `_lib/trending`: shared code for fetching and storage.
+- `_scripts/fetch_trending`: Go CLI entry.
+- `_scripts/trending`: shared code for fetching and storage.
 - Output path: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
   - Example: `neodb-social/2025/11/06/1730937600-neodb-social-book.json`
 

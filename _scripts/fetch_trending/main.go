@@ -7,7 +7,7 @@ import (
     "strings"
     "time"
 
-    "neodb-trending-history/_lib/trending"
+    "neodb-trending-history/_scripts/trending"
 )
 
 func main() {
@@ -43,4 +43,3 @@ func main() {
     }
     logf("done in %s", time.Since(started).Truncate(time.Millisecond))
 }
-
