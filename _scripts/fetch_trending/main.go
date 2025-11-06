@@ -19,6 +19,9 @@ func main() {
     flag.StringVar(&typesCSV, "types", strings.Join(cfg.Types, ","), "comma-separated trending types")
     flag.DurationVar(&cfg.HTTPTimeout, "timeout", cfg.HTTPTimeout, "HTTP timeout")
     flag.StringVar(&cfg.UserAgent, "ua", cfg.UserAgent, "HTTP User-Agent header")
+    flag.IntVar(&cfg.MaxConcurrent, "concurrency", cfg.MaxConcurrent, "max concurrent requests per host")
+    flag.IntVar(&cfg.Retries, "retries", cfg.Retries, "retries per request on failure")
+    flag.DurationVar(&cfg.RetryDelay, "retry-delay", cfg.RetryDelay, "base delay between retries")
     flag.Parse()
 
     if typesCSV != "" {

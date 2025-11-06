@@ -13,6 +13,7 @@ import (
     "regexp"
     "sort"
     "strings"
+    "sync"
     "time"
 )
 
@@ -26,6 +27,9 @@ type Config struct {
     Types         []string
     HTTPTimeout   time.Duration
     UserAgent     string
+    MaxConcurrent int
+    Retries       int
+    RetryDelay    time.Duration
 }
 
 // DefaultConfig returns sensible defaults.
@@ -36,6 +40,9 @@ func DefaultConfig() Config {
         Types:         append([]string{}, Types...),
         HTTPTimeout:   20 * time.Second,
         UserAgent:     "neodb-trending-history-bot",
+        MaxConcurrent: 4,
+        Retries:       2,
+        RetryDelay:    1 * time.Second,
     }
 }
 
@@ -126,36 +133,25 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
         // Collect per-type raw payloads and simplified entries for summary/README.
         typePayloads := make(map[string]json.RawMessage, len(cfg.Types))
         typeEntries := make(map[string][]entry, len(cfg.Types))
-        for _, t := range cfg.Types {
-            url := fmt.Sprintf("https://%s/api/trending/%s/", host, t)
-            req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
-            if err != nil {
-                logf("ERR build request %s %s: %v", host, t, err)
-                continue
-            }
-            req.Header.Set("Accept", "application/json")
-            if cfg.UserAgent != "" {
-                req.Header.Set("User-Agent", cfg.UserAgent)
-            }
+        var mu sync.Mutex
+        parallel := cfg.MaxConcurrent
+        if parallel <= 0 || parallel > len(cfg.Types) {
+            parallel = len(cfg.Types)
+        }
+        sem := make(chan struct{}, parallel)
+        var wg sync.WaitGroup
+        for _, typ := range cfg.Types {
+            t := typ
+            wg.Add(1)
+            go func() {
+                defer wg.Done()
+                sem <- struct{}{}
+                defer func() { <-sem }()
 
-            resp, err := client.Do(req)
-            if err != nil {
-                logf("ERR fetch %s %s: %v", host, t, err)
-                continue
-            }
-            func() {
-                defer resp.Body.Close()
-                if resp.StatusCode != http.StatusOK {
-                    logf("WARN non-200 %s %s: %s", host, t, resp.Status)
-                    return
-                }
-
-                // Limit read to 10MB to avoid bad responses.
-                const maxBytes = 10 << 20
-                r := io.LimitReader(resp.Body, maxBytes)
-                data, err := io.ReadAll(r)
+                url := fmt.Sprintf("https://%s/api/trending/%s/", host, t)
+                data, err := fetchWithRetry(client, url, cfg, host, t)
                 if err != nil {
-                    logf("ERR read body %s %s: %v", host, t, err)
+                    logf("ERR fetch %s %s: %v", host, t, err)
                     return
                 }
 
@@ -172,14 +168,16 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
                 }
                 logf("OK  saved %s", fpath)
 
-                // Save for summary and README.
-                typePayloads[t] = json.RawMessage(data)
                 ents := toEntries(data, host, t)
+                mu.Lock()
+                typePayloads[t] = json.RawMessage(data)
                 if len(ents) > 0 {
                     typeEntries[t] = ents
                 }
+                mu.Unlock()
             }()
         }
+        wg.Wait()
 
         // Write summary JSON without trailing type in filename.
         if len(typePayloads) > 0 {
@@ -197,6 +195,56 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
     }
 
     return nil
+}
+
+// fetchWithRetry performs HTTP GET with retries and returns the body bytes on 200 OK.
+func fetchWithRetry(client *http.Client, url string, cfg Config, host, typ string) ([]byte, error) {
+    attempts := cfg.Retries + 1
+    var lastErr error
+    var data []byte
+    for i := 0; i < attempts; i++ {
+        req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+        if err != nil {
+            return nil, err
+        }
+        req.Header.Set("Accept", "application/json")
+        if cfg.UserAgent != "" {
+            req.Header.Set("User-Agent", cfg.UserAgent)
+        }
+        resp, err := client.Do(req)
+        if err != nil {
+            lastErr = err
+        } else {
+            // scope to ensure resp.Body is closed per attempt
+            func() {
+                defer resp.Body.Close()
+                if resp.StatusCode != http.StatusOK {
+                    lastErr = fmt.Errorf("non-200: %s", resp.Status)
+                    return
+                }
+                const maxBytes = 10 << 20
+                r := io.LimitReader(resp.Body, maxBytes)
+                d, rerr := io.ReadAll(r)
+                if rerr != nil {
+                    lastErr = rerr
+                    return
+                }
+                data = d
+                lastErr = nil
+            }()
+        }
+        if lastErr == nil {
+            return data, nil
+        }
+        if i < attempts-1 {
+            d := cfg.RetryDelay
+            if d <= 0 {
+                d = 1 * time.Second
+            }
+            time.Sleep(d * time.Duration(1<<i))
+        }
+    }
+    return nil, lastErr
 }
 
 // entry is a simplified view for README rendering.
