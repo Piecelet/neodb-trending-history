@@ -127,6 +127,8 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
     now := time.Now().UTC()
     y, m, d := now.Date()
     ts := now.Format(time.RFC3339Nano)
+    // time-of-day subfolder, e.g. 16:36:50.154643Z
+    timeDir := now.Format("15:04:05.999999999Z07:00")
 
     for _, host := range hosts {
         dash := dashifyHost(host)
@@ -155,7 +157,8 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
                     return
                 }
 
-                dir := filepath.Join(cfg.OutputRoot, dash, fmt.Sprintf("%04d", y), fmt.Sprintf("%02d", int(m)), fmt.Sprintf("%02d", d))
+                dateDir := filepath.Join(cfg.OutputRoot, dash, fmt.Sprintf("%04d", y), fmt.Sprintf("%02d", int(m)), fmt.Sprintf("%02d", d))
+                dir := filepath.Join(dateDir, timeDir)
                 if mkErr := os.MkdirAll(dir, 0o755); mkErr != nil {
                     logf("ERR mkdir %s: %v", dir, mkErr)
                     return
@@ -181,7 +184,7 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
 
         // Write summary JSON without trailing type in filename.
         if len(typePayloads) > 0 {
-            if err := writeSummaryJSON(cfg.OutputRoot, dash, y, int(m), d, ts, host, typePayloads); err != nil {
+            if err := writeSummaryJSON(cfg.OutputRoot, dash, y, int(m), d, timeDir, ts, host, typePayloads); err != nil {
                 logf("ERR write summary for %s: %v", host, err)
             }
         }
@@ -407,8 +410,9 @@ func pickLink(m map[string]any, host, typ string) string {
     return ""
 }
 
-func writeSummaryJSON(root, dash string, y int, m int, d int, ts string, host string, payloads map[string]json.RawMessage) error {
-    dir := filepath.Join(root, dash, fmt.Sprintf("%04d", y), fmt.Sprintf("%02d", m), fmt.Sprintf("%02d", d))
+func writeSummaryJSON(root, dash string, y int, m int, d int, timeDir string, ts string, host string, payloads map[string]json.RawMessage) error {
+    base := filepath.Join(root, dash, fmt.Sprintf("%04d", y), fmt.Sprintf("%02d", m), fmt.Sprintf("%02d", d))
+    dir := filepath.Join(base, timeDir)
     if err := os.MkdirAll(dir, 0o755); err != nil {
         return err
     }

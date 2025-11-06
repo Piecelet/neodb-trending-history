@@ -7,10 +7,11 @@ Fetch and store NeoDB trending history for configured instances.
 - `_config/instance.txt`: one instance domain per line (no scheme).
 - `_scripts/fetch_trending`: Go CLI entry.
 - `_scripts/trending`: shared code for fetching and storage.
-- Per-type JSON snapshot: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
+- Per-type JSON snapshot: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{time}/{timestamp-instance_host_dash-trending_type}.json`
   - `timestamp` uses RFC3339 (serverdate), e.g. `YYYY-MM-DDThh:mm:ss.sssZ` (may include more fractional digits).
-  - Example: `neodb-social/2025/11/06/2025-11-06T12:34:56.789Z-neodb-social-trending-book.json`
-- Summary JSON (no type suffix): `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending}.json`
+  - `time` is the time-of-day subfolder like `hh:mm:ss.sssZ`.
+  - Example: `neodb-social/2025/11/06/12:34:56.789Z/2025-11-06T12:34:56.789Z-neodb-social-trending-book.json`
+- Summary JSON (no type suffix): `{instance_host_dash}/{yyyy}/{mm}/{dd}/{time}/{timestamp-instance_host_dash-trending}.json`
   - Structure: `{ "timestamp": string, "host": string, "types": { <type>: <raw_api_payload>, ... } }`
 - Per-day README: `{instance_host_dash}/{yyyy}/{mm}/{dd}/README.md`
   - First time created, header contains:
