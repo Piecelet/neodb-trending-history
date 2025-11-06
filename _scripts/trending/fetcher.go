@@ -3,6 +3,7 @@ package trending
 import (
     "bufio"
     "context"
+    "encoding/json"
     "errors"
     "fmt"
     "io"
@@ -10,6 +11,7 @@ import (
     "os"
     "path/filepath"
     "regexp"
+    "sort"
     "strings"
     "time"
 )
@@ -121,6 +123,9 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
 
     for _, host := range hosts {
         dash := dashifyHost(host)
+        // Collect per-type raw payloads and simplified entries for summary/README.
+        typePayloads := make(map[string]json.RawMessage, len(cfg.Types))
+        typeEntries := make(map[string][]entry, len(cfg.Types))
         for _, t := range cfg.Types {
             url := fmt.Sprintf("https://%s/api/trending/%s/", host, t)
             req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
@@ -166,9 +171,242 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
                     return
                 }
                 logf("OK  saved %s", fpath)
+
+                // Save for summary and README.
+                typePayloads[t] = json.RawMessage(data)
+                ents := toEntries(data)
+                if len(ents) > 0 {
+                    typeEntries[t] = ents
+                }
             }()
+        }
+
+        // Write summary JSON without trailing type in filename.
+        if len(typePayloads) > 0 {
+            if err := writeSummaryJSON(cfg.OutputRoot, dash, y, int(m), d, ts, host, typePayloads); err != nil {
+                logf("ERR write summary for %s: %v", host, err)
+            }
+        }
+
+        // Append README section with a table snapshot.
+        if len(typeEntries) > 0 {
+            if err := appendREADME(cfg.OutputRoot, dash, host, y, int(m), d, ts, typeEntries); err != nil {
+                logf("ERR write README for %s: %v", host, err)
+            }
         }
     }
 
     return nil
+}
+
+// entry is a simplified view for README rendering.
+type entry struct {
+    Title string
+    Image string
+}
+
+// toEntries attempts to parse trending payload into a list of entries.
+func toEntries(data []byte) []entry {
+    var v any
+    if err := json.Unmarshal(data, &v); err != nil {
+        return nil
+    }
+    // find array
+    var arr []any
+    switch vv := v.(type) {
+    case []any:
+        arr = vv
+    case map[string]any:
+        // common keys holding arrays
+        for _, k := range []string{"results", "items", "data", "objects", "list"} {
+            if x, ok := vv[k]; ok {
+                if xs, ok := x.([]any); ok {
+                    arr = xs
+                    break
+                }
+            }
+        }
+        // some APIs may have map of type->array; flatten first array
+        if arr == nil {
+            // try any first array value
+            keys := make([]string, 0, len(vv))
+            for k := range vv {
+                keys = append(keys, k)
+            }
+            sort.Strings(keys)
+            for _, k := range keys {
+                if xs, ok := vv[k].([]any); ok {
+                    arr = xs
+                    break
+                }
+            }
+        }
+    default:
+        return nil
+    }
+    if arr == nil {
+        return nil
+    }
+    out := make([]entry, 0, len(arr))
+    for _, it := range arr {
+        if m, ok := it.(map[string]any); ok {
+            title := pickTitle(m)
+            img := pickImage(m)
+            if title == "" && img == "" {
+                continue
+            }
+            out = append(out, entry{Title: title, Image: img})
+        }
+    }
+    return out
+}
+
+func pickTitle(m map[string]any) string {
+    // direct keys
+    for _, k := range []string{"title", "name", "text", "caption"} {
+        if v, ok := m[k]; ok {
+            if s, ok := v.(string); ok && s != "" {
+                return s
+            }
+        }
+    }
+    // nested subject
+    if sub, ok := m["subject"].(map[string]any); ok {
+        for _, k := range []string{"title", "name"} {
+            if v, ok := sub[k]; ok {
+                if s, ok := v.(string); ok && s != "" {
+                    return s
+                }
+            }
+        }
+    }
+    return ""
+}
+
+func pickImage(m map[string]any) string {
+    // helpers
+    pickFromObj := func(obj map[string]any, keys ...string) string {
+        for _, k := range keys {
+            if v, ok := obj[k]; ok {
+                switch vv := v.(type) {
+                case string:
+                    if vv != "" {
+                        return vv
+                    }
+                case map[string]any:
+                    // try common sizes
+                    for _, kk := range []string{"url", "medium", "large", "small"} {
+                        if s, ok := vv[kk].(string); ok && s != "" {
+                            return s
+                        }
+                    }
+                }
+            }
+        }
+        return ""
+    }
+
+    if s := pickFromObj(m, "cover", "cover_url", "poster", "image", "img", "avatar", "icon", "logo", "picture", "pic", "thumbnail", "thumb"); s != "" {
+        return s
+    }
+    if sub, ok := m["subject"].(map[string]any); ok {
+        if s := pickFromObj(sub, "cover", "cover_url", "poster", "image", "img", "avatar", "icon", "logo", "picture", "pic", "thumbnail", "thumb"); s != "" {
+            return s
+        }
+    }
+    return ""
+}
+
+func writeSummaryJSON(root, dash string, y int, m int, d int, ts string, host string, payloads map[string]json.RawMessage) error {
+    dir := filepath.Join(root, dash, fmt.Sprintf("%04d", y), fmt.Sprintf("%02d", m), fmt.Sprintf("%02d", d))
+    if err := os.MkdirAll(dir, 0o755); err != nil {
+        return err
+    }
+    fname := fmt.Sprintf("%s-%s.json", ts, dash)
+    fpath := filepath.Join(dir, fname)
+    obj := map[string]any{
+        "timestamp": ts,
+        "host":      host,
+        "types":     payloads,
+    }
+    data, err := json.MarshalIndent(obj, "", "  ")
+    if err != nil {
+        return err
+    }
+    return os.WriteFile(fpath, data, 0o644)
+}
+
+func appendREADME(root, dash, host string, y int, m int, d int, ts string, typeEntries map[string][]entry) error {
+    dir := filepath.Join(root, dash, fmt.Sprintf("%04d", y), fmt.Sprintf("%02d", m), fmt.Sprintf("%02d", d))
+    if err := os.MkdirAll(dir, 0o755); err != nil {
+        return err
+    }
+    fpath := filepath.Join(dir, "README.md")
+
+    var b strings.Builder
+    if _, err := os.Stat(fpath); errors.Is(err, os.ErrNotExist) {
+        // New file: add top-level title
+        b.WriteString(fmt.Sprintf("# NeoDB Trending History for %s\n\n", host))
+    }
+    b.WriteString(fmt.Sprintf("## %s\n", ts))
+    // Build a wide table with 20 columns as requested
+    columns := 20
+    // header row with blanks
+    b.WriteString("|")
+    for i := 0; i < columns; i++ {
+        b.WriteString("      |")
+    }
+    b.WriteString("\n|")
+    for i := 0; i < columns; i++ {
+        b.WriteString(" ---- |")
+    }
+    b.WriteString("\n")
+    // rows: one per category, in deterministic order
+    for _, t := range Types {
+        cells := renderCells(typeEntries[t], columns, host)
+        b.WriteString("|")
+        for _, c := range cells {
+            b.WriteString(" ")
+            b.WriteString(c)
+            b.WriteString(" |")
+        }
+        b.WriteString("\n")
+    }
+    b.WriteString("\n")
+
+    // Append to file
+    f, err := os.OpenFile(fpath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+    _, err = f.WriteString(b.String())
+    return err
+}
+
+func renderCells(ents []entry, columns int, host string) []string {
+    cells := make([]string, columns)
+    for i := 0; i < columns; i++ {
+        if i < len(ents) {
+            t := strings.TrimSpace(ents[i].Title)
+            t = escapePipes(t)
+            if ents[i].Image != "" {
+                img := ents[i].Image
+                if strings.HasPrefix(img, "/") {
+                    img = "https://" + host + img
+                }
+                cells[i] = fmt.Sprintf("![](%s)<br/>%s", img, t)
+            } else {
+                cells[i] = t
+            }
+        } else {
+            cells[i] = ""
+        }
+    }
+    return cells
+}
+
+func escapePipes(s string) string {
+    // Escape '|' to avoid breaking table cells
+    return strings.ReplaceAll(s, "|", "\\|")
 }
