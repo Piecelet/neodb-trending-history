@@ -447,14 +447,19 @@ func renderCells(ents []entry, columns int, host, typ string) []string {
                 img = "https://" + host + img
             }
             link := ents[i].Link
-            titlePart := t
             if link != "" {
-                titlePart = fmt.Sprintf("[%s](%s)", t, link)
-            }
-            if img != "" {
-                cells[i] = fmt.Sprintf("![](%s)<br/>%s", img, titlePart)
+                // Make both image and title clickable as one link
+                if img != "" {
+                    cells[i] = fmt.Sprintf("[![](%s)<br/>%s](%s)", img, t, link)
+                } else {
+                    cells[i] = fmt.Sprintf("[%s](%s)", t, link)
+                }
             } else {
-                cells[i] = titlePart
+                if img != "" {
+                    cells[i] = fmt.Sprintf("![](%s)<br/>%s", img, t)
+                } else {
+                    cells[i] = t
+                }
             }
         } else {
             cells[i] = ""
