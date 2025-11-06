@@ -1,4 +1,15 @@
+# NeoDB Trending History instance configuration file
+#
 # One instance domain per line (no scheme), e.g.:
 # neodb.social
+#
+# Instance domains listed here will be processed for trending data
+# and saved to the GitHub repository.
+# https://github.com/Piecelet/neodb-trending-history
+#
+# If you do not want your instance to be processed, open an issue or
+# submit a pull request removing it from this file as a server administrator.
+# Sorry for the inconvenience.
+# 
 
 neodb.social

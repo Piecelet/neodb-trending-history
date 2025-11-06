@@ -9,13 +9,13 @@ Fetch and store NeoDB trending history for configured instances.
 - `_scripts/trending`: shared code for fetching and storage.
 - Per-type JSON snapshot: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
   - `timestamp` uses RFC3339 (serverdate), e.g. `YYYY-MM-DDThh:mm:ss.sssZ` (may include more fractional digits).
-  - Example: `neodb-social/2025/11/06/2025-11-06T12:34:56.789Z-neodb-social-book.json`
+  - Example: `neodb-social/2025/11/06/2025-11-06T12:34:56.789Z-neodb-social-trending-book.json`
 - Summary JSON (no type suffix): `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash}.json`
   - Structure: `{ "timestamp": string, "host": string, "types": { <type>: <raw_api_payload>, ... } }`
 - Per-day README: `{instance_host_dash}/{yyyy}/{mm}/{dd}/README.md`
   - First time created, header contains:
-    - `# NeoDB Trending History for {host}`
-    - `YYYY-MM-DD` (plain date line)
+    - `# NeoDB Trending History for [{host}](https://{host}/)`
+    - `YYYY-MM-DD | [NeoDB Trending History by Piecelet](https://github.com/Piecelet/neodb-trending-history)`
   - Each fetch appends a section:
     - `## {RFC3339 timestamp}`
     - A 20-column table snapshot

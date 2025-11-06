@@ -164,7 +164,7 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
                     logf("ERR mkdir %s: %v", dir, mkErr)
                     return
                 }
-                fname := fmt.Sprintf("%s-%s-%s.json", ts, dash, t)
+                fname := fmt.Sprintf("%s-%s-trending-%s.json", ts, dash, t)
                 fpath := filepath.Join(dir, fname)
                 if writeErr := os.WriteFile(fpath, data, 0o644); writeErr != nil {
                     logf("ERR write %s: %v", fpath, writeErr)
@@ -387,9 +387,9 @@ func appendREADME(root, dash, host string, y int, m int, d int, ts string, typeE
 
     var b strings.Builder
     if _, err := os.Stat(fpath); errors.Is(err, os.ErrNotExist) {
-        // New file: add top-level title and plain date line
-        b.WriteString(fmt.Sprintf("# NeoDB Trending History for %s\n\n", host))
-        b.WriteString(fmt.Sprintf("%04d-%02d-%02d\n\n", y, m, d))
+        // New file: add top-level title (with link) and date + project link line
+        b.WriteString(fmt.Sprintf("# NeoDB Trending History for [%s](https://%s/)\n\n", host, host))
+        b.WriteString(fmt.Sprintf("%04d-%02d-%02d | [NeoDB Trending History by Piecelet](https://github.com/Piecelet/neodb-trending-history)\n\n", y, m, d))
     }
     b.WriteString(fmt.Sprintf("## %s\n", ts))
     // Build a wide table: first column is row label, remaining 19 cells for items
