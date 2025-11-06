@@ -450,13 +450,15 @@ func renderCells(ents []entry, columns int, host, typ string) []string {
             if link != "" {
                 // Make both image and title clickable as one link
                 if img != "" {
-                    cells[i] = fmt.Sprintf("[![](%s)<br/>%s](%s)", img, t, link)
+                    alt := escapeAltText(t)
+                    cells[i] = fmt.Sprintf("[![%s](%s)<br/>%s](%s)", alt, img, t, link)
                 } else {
                     cells[i] = fmt.Sprintf("[%s](%s)", t, link)
                 }
             } else {
                 if img != "" {
-                    cells[i] = fmt.Sprintf("![](%s)<br/>%s", img, t)
+                    alt := escapeAltText(t)
+                    cells[i] = fmt.Sprintf("![%s](%s)<br/>%s", alt, img, t)
                 } else {
                     cells[i] = t
                 }
@@ -492,4 +494,11 @@ func typeLabel(t string) string {
 func escapePipes(s string) string {
     // Escape '|' to avoid breaking table cells
     return strings.ReplaceAll(s, "|", "\\|")
+}
+
+func escapeAltText(s string) string {
+    // Escape characters that can break Markdown alt text
+    s = strings.ReplaceAll(s, "[", "\\[")
+    s = strings.ReplaceAll(s, "]", "\\]")
+    return s
 }
