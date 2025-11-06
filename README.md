@@ -8,7 +8,8 @@ Fetch and store NeoDB trending history for configured instances.
 - `_scripts/fetch_trending`: Go CLI entry.
 - `_scripts/trending`: shared code for fetching and storage.
 - Output path: `{instance_host_dash}/{yyyy}/{mm}/{dd}/{timestamp-instance_host_dash-trending_type}.json`
-  - Example: `neodb-social/2025/11/06/1730937600-neodb-social-book.json`
+  - `timestamp` uses RFC3339 (serverdate) like `YYYY-MM-DDThh:mm:ss.sZ`.
+  - Example: `neodb-social/2025/11/06/2025-11-06T12:34:56.789Z-neodb-social-book.json`
 
 ## Trending endpoints
 

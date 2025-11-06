@@ -117,7 +117,7 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
     client := &http.Client{Timeout: cfg.HTTPTimeout}
     now := time.Now().UTC()
     y, m, d := now.Date()
-    ts := now.Unix()
+    ts := now.Format(time.RFC3339Nano)
 
     for _, host := range hosts {
         dash := dashifyHost(host)
@@ -159,7 +159,7 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
                     logf("ERR mkdir %s: %v", dir, mkErr)
                     return
                 }
-                fname := fmt.Sprintf("%d-%s-%s.json", ts, dash, t)
+                fname := fmt.Sprintf("%s-%s-%s.json", ts, dash, t)
                 fpath := filepath.Join(dir, fname)
                 if writeErr := os.WriteFile(fpath, data, 0o644); writeErr != nil {
                     logf("ERR write %s: %v", fpath, writeErr)
@@ -172,4 +172,3 @@ func FetchAll(cfg Config, logf func(format string, args ...any)) error {
 
     return nil
 }
-
