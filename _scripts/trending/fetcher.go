@@ -18,7 +18,7 @@ import (
 )
 
 // Types contains the supported trending categories.
-var Types = []string{"book", "movie", "tv", "music", "game", "podcast", "collection"}
+var Types = []string{"book", "movie", "tv", "music", "game", "podcast", "collection", "performance", "tag"}
 
 // Config holds runtime parameters.
 type Config struct {
@@ -542,6 +542,10 @@ func typeLabel(t string) string {
         return "podcasts"
     case "collection":
         return "collections"
+    case "performance":
+        return "performances"
+    case "tag":
+        return "tags"
     default:
         return t
     }

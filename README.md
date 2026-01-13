@@ -39,6 +39,8 @@ Fetch and store NeoDB trending history for configured instances.
 - `/api/trending/game/`
 - `/api/trending/podcast/`
 - `/api/trending/collection/`
+- `/api/trending/performance/`
+- `/api/trending/tag/`
 
 ## Local usage
 
