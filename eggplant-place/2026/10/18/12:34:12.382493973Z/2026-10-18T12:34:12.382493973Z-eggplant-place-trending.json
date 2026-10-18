@@ -1,0 +1,14 @@
+{
+  "host": "eggplant.place",
+  "timestamp": "2026-10-18T12:34:12.382493973Z",
+  "types": {
+    "book": [],
+    "game": [],
+    "movie": [],
+    "music": [],
+    "performance": [],
+    "podcast": [],
+    "tag": [],
+    "tv": []
+  }
+}
